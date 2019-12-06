@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # utility methods for for addressing snake_cased data via moztelemetry
 # https://github.com/acmiyaguchi/test-casing/
+import json
 import regex as re
 import collections
 
@@ -89,3 +90,13 @@ class SnakeCaseDict(collections.MutableMapping):
 
     def __delitem__(self, key):
         self.data.delete(key)
+
+
+# FIXME make snake dict a subclass of dict so that a custom json encoder isn't necessary
+class SnakeCaseEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, SnakeCaseDict):
+            # return json.JSONEncoder.default(self, obj.data)
+            return obj.data
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
