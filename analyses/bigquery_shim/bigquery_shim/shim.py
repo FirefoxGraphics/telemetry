@@ -11,6 +11,7 @@ def fetch_results(
     start_date,
     end_date,
     channel=None,
+    min_firefox_version="53",
     project="moz-fx-data-shared-prod",
     dataset_id="analysis",
     table_id="graphics_telemetry_dashboard_tmp",
@@ -63,11 +64,12 @@ def fetch_results(
         payload.processes.content.keyed_histograms.CANVAS_WEBGL_ACCL_FAILURE_ID   as payload__processes__content__keyed_histograms__CANVAS_WEBGL_ACCL_FAILURE_ID,
         payload.processes.content.keyed_histograms.CANVAS_WEBGL_FAILURE_ID        as payload__processes__content__keyed_histograms__CANVAS_WEBGL_FAILURE_ID
         from `moz-fx-data-shared-prod.telemetry_stable.main_v4` where
-        sample_id = 42 and
-        date(submission_timestamp) >= '{}' AND date(submission_timestamp) <= '{}' AND
+        date(submission_timestamp) >= '{start_date}' AND date(submission_timestamp) <= '{end_date}' AND
         normalized_app_name = 'Firefox' AND
-        {}
-        CAST(SPLIT(application.version, '.')[OFFSET(0)] AS INT64) > 53 AND
+        {channel_filter}
+        CAST(SPLIT(application.version, '.')[OFFSET(0)] AS INT64) > {min_firefox_version} AND
+        -- NOTE: fixed fraction corresponding to 0.0003
+        sample_id = 42 AND
         MOD(CAST(RAND()*10 AS INT64), 10) < 3),
 
     distinct_client_ids AS (SELECT distinct(client_id) FROM sample),
@@ -85,7 +87,10 @@ def fetch_results(
     WHERE
       _n = 1
     """.format(
-        start_date.strftime(FORMAT_DS), end_date.strftime(FORMAT_DS), channel_filter
+        start_date=start_date.strftime(FORMAT_DS),
+        end_date=end_date.strftime(FORMAT_DS),
+        channel_filter=channel_filter,
+        min_firefox_version=min_firefox_version,
     )
 
     bq = bigquery.Client()
