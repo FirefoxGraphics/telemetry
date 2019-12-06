@@ -101,12 +101,13 @@ def fetch_results(
     # Wait for query execution
     result = query_job.result()
 
-    df = (
+    return (
         spark.read.format("bigquery")
         .option("project", "moz-fx-data-shared-prod")
         .option("dataset", query_job.destination.dataset_id)
         .option("table", query_job.destination.table_id)
         .load()
+        .rdd
     )
 
 
@@ -212,11 +213,11 @@ def convert_snake_case_dict(mapping):
     """Convert mappings to SnakeCaseDicts recursively."""
     if isinstance(mapping, collections.Mapping):
         for key, value in mapping.items():
-            mapping[key] = convert2(value)
+            mapping[key] = convert_snake_case_dict(value)
         return SnakeCaseDict(mapping)
     elif isinstance(mapping, list):
         l = []
         for value in mapping:
-            l.append(convert2(value))
+            l.append(convert_snake_case_dict(value))
         return l
     return mapping
