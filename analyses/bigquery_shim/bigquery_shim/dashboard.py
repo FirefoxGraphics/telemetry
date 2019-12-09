@@ -1,7 +1,11 @@
-import json
+"""For use with graphics-telemetry-dashboard-db.ipynb"""
+
 import collections
-from .snake_case import SnakeCaseDict
+import json
+
 from google.cloud import bigquery, storage
+
+from .snake_case import SnakeCaseDict, convert_snake_case_dict
 
 FORMAT_DS = "%Y-%m-%d"
 
@@ -12,7 +16,7 @@ def fetch_results(
     end_date,
     channel=None,
     min_firefox_version="53",
-    project="moz-fx-data-shared-prod",
+    project_id="moz-fx-data-shared-prod",
     dataset_id="analysis",
     table_id="graphics_telemetry_dashboard_tmp",
 ):
@@ -94,9 +98,7 @@ def fetch_results(
     )
 
     bq = bigquery.Client()
-    table_ref = bq.dataset(dataset_id, project="moz-fx-data-shared-prod").table(
-        table_id
-    )
+    table_ref = bq.dataset(dataset_id, project=project_id).table(table_id)
     job_config = bigquery.QueryJobConfig()
     job_config.destination = table_ref
     job_config.write_disposition = "WRITE_TRUNCATE"
@@ -108,7 +110,7 @@ def fetch_results(
 
     return (
         spark.read.format("bigquery")
-        .option("project", "moz-fx-data-shared-prod")
+        .option("project", project_id)
         .option("dataset", query_job.destination.dataset_id)
         .option("table", query_job.destination.table_id)
         .load()
@@ -212,17 +214,3 @@ def convert_bigquery_results(f):
                 newdict["environment"]["system"]["gfx"]["adapters"][i].update(adapter)
 
     return newdict
-
-
-def convert_snake_case_dict(mapping):
-    """Convert mappings to SnakeCaseDicts recursively."""
-    if isinstance(mapping, collections.Mapping):
-        for key, value in mapping.items():
-            mapping[key] = convert_snake_case_dict(value)
-        return SnakeCaseDict(mapping)
-    elif isinstance(mapping, list):
-        l = []
-        for value in mapping:
-            l.append(convert_snake_case_dict(value))
-        return l
-    return mapping

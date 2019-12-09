@@ -100,3 +100,17 @@ class SnakeCaseEncoder(json.JSONEncoder):
             return obj.data
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
+
+
+def convert_snake_case_dict(mapping):
+    """Convert mappings to SnakeCaseDicts recursively."""
+    if isinstance(mapping, collections.Mapping):
+        for key, value in mapping.items():
+            mapping[key] = convert_snake_case_dict(value)
+        return SnakeCaseDict(mapping)
+    elif isinstance(mapping, list):
+        l = []
+        for value in mapping:
+            l.append(convert_snake_case_dict(value))
+        return l
+    return mapping
