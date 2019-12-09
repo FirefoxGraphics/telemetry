@@ -10,7 +10,7 @@
 dbutils.library.installPyPI("google-cloud-bigquery", "1.16.0")
 dbutils.library.installPyPI("google-cloud-storage", "1.22.0")
 dbutils.library.installPyPI("regex")
-dbutils.library.install("dbfs:/eggs/bigquery_shim-0.4.0-py3.7.egg")
+dbutils.library.install("dbfs:/eggs/bigquery_shim-0.5.0-py3.7.egg")
 dbutils.library.restartPython()
 
 
@@ -219,7 +219,7 @@ def reduce_pings(pings):
 def FormatPings(pings):
     pings = pings.map(dashboard.convert_bigquery_results)
     pings = reduce_pings(pings)
-    pings = pings.map(dashboard.convert_snake_case_dict)
+    pings = pings.map(snake_case.convert_snake_case_dict)
     pings = pings.map(Validate)
     filtered_pings = pings.filter(lambda p: p.get('valid', False) == True)
     return filtered_pings.cache()
