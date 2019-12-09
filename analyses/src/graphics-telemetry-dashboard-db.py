@@ -6,14 +6,25 @@
 # In[2]:
 
 
+# installPyPI does not support installing from a vcs subdirectory
+dbutils.library.installPyPI("google-cloud-bigquery", "1.16.0")
+dbutils.library.installPyPI("google-cloud-storage", "1.22.0")
+dbutils.library.installPyPI("regex")
+dbutils.library.install("dbfs:/eggs/bigquery_shim-0.4.0-py3.7.egg")
+dbutils.library.restartPython()
+
+
+# In[3]:
+
+
 from __future__ import division
 import ujson as json
 import pandas as pd
 import numpy as np
 import operator
 import json, datetime, time, sys
-from moztelemetry import get_pings, get_pings_properties, get_one_ping_per_client
-from moztelemetry.dataset import Dataset
+from moztelemetry import get_pings_properties
+from bigquery_shim import dashboard, snake_case
 def fmt_date(d):
     return d.strftime("%Y%m%d")
 def repartition(pipeline):
@@ -38,7 +49,7 @@ MinFirefoxVersion = '53'
 TARGET_DIRECTORY = 's3://telemetry-public-analysis-2/gfx/telemetry-data'
 
 
-# In[3]:
+# In[4]:
 
 
 # Create the target directory on S3
@@ -46,7 +57,7 @@ dbutils.fs.mkdirs(TARGET_DIRECTORY)
 dbutils.fs.ls(TARGET_DIRECTORY)
 
 
-# In[4]:
+# In[5]:
 
 
 # List of keys for properties on session pings that we care about.
@@ -90,7 +101,7 @@ PropertyList = [
 ]
 
 
-# In[5]:
+# In[6]:
 
 
 ###########################################################
@@ -112,17 +123,9 @@ def FetchRawPings(**kwargs):
     now = datetime.datetime.now()
     start = now - datetime.timedelta(timeWindow) - limit
     end = now - limit
-    
-    def match_date(date):
-        return fmt_date(start) <= date <= fmt_date(end)
-    
-    ds = Dataset.from_source('telemetry-sample')
-    ds = ds.where(docType = 'main')
-    ds = ds.where(appName = 'Firefox')
-    ds = ds.where(appVersion = lambda version: version >= MinFirefoxVersion)
-    if channel is not None:
-        ds = ds.where(appUpdateChannel = channel)
-    ds = ds.where(submissionDate = match_date)
+
+    # NOTE: ReleaseFraction is not used in the shim
+    pings = dashboard.fetch_results(spark, start, end, channel=channel, min_firefox_version=MinFirefoxVersion)
     
     metadata = [{
         'info': {
@@ -136,12 +139,8 @@ def FetchRawPings(**kwargs):
         'timestamp': now,
     }
     
-    # We hit the telemetry-sample dataset, which is a 1% sample of pings, so we multiply the configured fraction by 100.
-    modified_fraction = fraction * 100
-    
-    pings = ds.records(sc, sample = modified_fraction)
     return pings, info
-        
+
 # Transform each ping to make it easier to work with in later stages.
 def Validate(p):
     name = p.get("environment/system/os/name") or 'w'
@@ -218,8 +217,9 @@ def reduce_pings(pings):
     ] + PropertyList)
 
 def FormatPings(pings):
+    pings = pings.map(dashboard.convert_bigquery_results)
     pings = reduce_pings(pings)
-    pings = get_one_ping_per_client(pings)
+    pings = pings.map(dashboard.convert_snake_case_dict)
     pings = pings.map(Validate)
     filtered_pings = pings.filter(lambda p: p.get('valid', False) == True)
     return filtered_pings.cache()
@@ -229,7 +229,7 @@ def FetchAndFormat(**kwargs):
     return FormatPings(raw_pings), info
 
 
-# In[6]:
+# In[7]:
 
 
 ##################################################################
@@ -274,7 +274,7 @@ def coalesce_to_n_items(agg, max_items):
     return obj
 
 
-# In[7]:
+# In[8]:
 
 
 #############################
@@ -303,7 +303,8 @@ def ApplyPingInfo(obj, **kwargs):
 def Export(filename, obj, **kwargs):
     full_filename = '{0}/{1}.json'.format(TARGET_DIRECTORY, filename)
     print('Writing to {0}'.format(full_filename));
-    dbutils.fs.put(full_filename, json.dumps(obj), overwrite=True)
+    # serialize snake case dicts via their underlying dict
+    dbutils.fs.put(full_filename, json.dumps(obj, cls=snake_case.SnakeCaseEncoder), overwrite=True)
         
 def TimedExport(filename, callback, **kwargs):
     start = datetime.datetime.now()
@@ -338,7 +339,7 @@ class Prof(object):
         sys.stdout.flush()
 
 
-# In[8]:
+# In[9]:
 
 
 def quiet_logs(sc):
@@ -348,7 +349,7 @@ def quiet_logs(sc):
 quiet_logs(sc)
 
 
-# In[9]:
+# In[10]:
 
 
 # Get a general ping sample across all Firefox channels.
@@ -371,7 +372,7 @@ with Prof("General pings") as px:
 
 # ## General statistics
 
-# In[12]:
+# In[13]:
 
 
 # Results by operating system.
@@ -420,7 +421,7 @@ TimedExport(filename = 'general-statistics',
 
 # ## Device/driver search database
 
-# In[14]:
+# In[15]:
 
 
 def GetDriverStatistics():
@@ -436,7 +437,7 @@ TimedExport(filename = 'device-statistics',
 
 # ## TDR Statistics
 
-# In[16]:
+# In[17]:
 
 
 #############################
@@ -496,7 +497,7 @@ TimedExport(filename = 'tdr-statistics',
 
 # ## System Statistics
 
-# In[18]:
+# In[19]:
 
 
 ##########################
@@ -592,7 +593,7 @@ TimedExport(filename = 'system-statistics',
 
 # ## Sanity Test Statistics
 
-# In[20]:
+# In[21]:
 
 
 # Set up constants.
@@ -626,7 +627,7 @@ def get_sanity_test_result(p):
     return None
 
 
-# In[21]:
+# In[22]:
 
 
 #########################
@@ -718,7 +719,7 @@ TimedExport(filename = 'sanity-test-statistics',
 
 # ## Startup Crash Guard Statistics
 
-# In[23]:
+# In[24]:
 
 
 STARTUP_OK = 0
@@ -749,7 +750,7 @@ TimedExport(filename = 'startup-test-statistics',
 
 # ## Monitor Statistics
 
-# In[25]:
+# In[26]:
 
 
 def get_monitor_count(p):
@@ -767,7 +768,7 @@ def get_monitor_res(p, i):
     return '{0}x{1}'.format(width, height)
 
 
-# In[26]:
+# In[27]:
 
 
 def GetMonitorStatistics():
@@ -810,7 +811,7 @@ TimedExport(filename = 'monitor-statistics',
 
 # ## Mac OS X Statistics
 
-# In[28]:
+# In[29]:
 
 
 MacPings = GeneralPings.filter(lambda p: p['OSName'] == 'Darwin')
@@ -851,7 +852,7 @@ TimedExport(filename = 'mac-statistics',
 
 # ### Helpers for Compositor/Acceleration fields
 
-# In[30]:
+# In[31]:
 
 
 # Build graphics feature statistics.
@@ -919,7 +920,7 @@ def advanced_layers_status(p):
 
 # ## Windows Compositor and Blacklisting Statistics
 
-# In[32]:
+# In[33]:
 
 
 # Get pings with graphics features. This landed in roughly the 7-19-2015 nightly.
@@ -930,7 +931,7 @@ WindowsFeatures = WindowsPings.filter(lambda p: p.get(FeaturesKey) is not None)
 WindowsFeatures = WindowsFeatures.cache()
 
 
-# In[33]:
+# In[34]:
 
 
 # We skip certain windows versions in detail lists since this phase is
@@ -1058,7 +1059,7 @@ TimedExport(filename = 'windows-features',
             pings = (WindowsFeatures, GeneralPingInfo))
 
 
-# In[34]:
+# In[35]:
 
 
 WindowsFeatures = None
@@ -1066,7 +1067,7 @@ WindowsFeatures = None
 
 # ## Linux
 
-# In[36]:
+# In[37]:
 
 
 LinuxPings = GeneralPings.filter(lambda p: p['OSName'] == 'Linux')
@@ -1092,7 +1093,7 @@ TimedExport(filename = 'linux-statistics',
 # ## WebGL Statistics
 # _Note, this depends on running the "Helpers for Compositor/Acceleration fields" a few blocks above._
 
-# In[38]:
+# In[39]:
 
 
 def GetGLStatistics():
@@ -1163,7 +1164,7 @@ TimedExport(filename = 'webgl-statistics',
             pings = (GeneralPings, GeneralPingInfo))
 
 
-# In[39]:
+# In[40]:
 
 
 def GetLayersStatus():
@@ -1194,7 +1195,7 @@ TimedExport(filename = 'layers-failureid-statistics',
 
 # ## Analysis End - Cleanup
 
-# In[41]:
+# In[42]:
 
 
 # Done with global pings.
@@ -1205,7 +1206,7 @@ GeneralPings = None
 GeneralPingInfo = None
 
 
-# In[42]:
+# In[43]:
 
 
 EndTime = datetime.datetime.now()
