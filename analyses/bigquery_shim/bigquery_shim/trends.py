@@ -1,4 +1,4 @@
-from .snake_casing import convert_snake_case_dict
+from .snake_case import convert_snake_case_dict
 from google.cloud import bigquery
 
 ArchKey = "environment/build/architecture"
@@ -10,6 +10,8 @@ GfxFeaturesKey = "environment/system/gfx/features"
 OSNameKey = "environment/system/os/name"
 OSVersionKey = "environment/system/os/version"
 OSServicePackMajorKey = "environment/system/os/servicePackMajor"
+
+FORMAT_DS = "%Y-%m-%d"
 
 
 def fetch_results(
@@ -38,7 +40,7 @@ def fetch_results(
   CAST(SPLIT(application.version, '.')[OFFSET(0)] AS INT64) > 53 AND
   MOD(CAST(RAND()*10 AS INT64), 10) <3
   """.format(
-        start_date, end_date
+        start_date.strftime(FORMAT_DS), end_date.strftime(FORMAT_DS)
     )
 
     bq = bigquery.Client()
