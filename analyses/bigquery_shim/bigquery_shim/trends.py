@@ -63,17 +63,6 @@ def fetch_results(
     )
 
 
-# note: asDict takes a recursive argument that should be used instead of this, most likely
-def build_features(d):
-    m = {}
-    for k, v in d.items():
-        if isinstance(v, str):
-            m[k] = v
-        else:
-            m[k] = v.asDict()
-    return m
-
-
 def to_dataset(ping):
     """Hacky conversion to dataset API-style RDD"""
     o = {}
@@ -82,9 +71,9 @@ def to_dataset(ping):
     o[ArchKey] = ping.architecture
     o[FxVersionKey] = ping.build_version
     o[Wow64Key] = ping.is_wow64
-    o[CpuKey] = ping.cpu.asDict()
-    o[GfxAdaptersKey] = list(map(lambda x: x.asDict(), ping.adapters))
-    o[GfxFeaturesKey] = build_features(ping.features.asDict())
+    o[CpuKey] = ping.cpu.asDict() if ping.cpu else None
+    o[GfxAdaptersKey] = [x.asDict() for x in ping.adapters]
+    o[GfxFeaturesKey] = ping.features.asDict(recursive=True) if ping.features else None
     o[OSNameKey] = ping.name
     # fixme os_version
     o[OSVersionKey] = ping.os_version

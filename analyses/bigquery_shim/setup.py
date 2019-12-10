@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="bigquery_shim",
-    version="0.5.6",
+    version="0.5.8",
     packages=["bigquery_shim"],
     install_requires=[
         "google-cloud-bigquery == 1.16.0",
