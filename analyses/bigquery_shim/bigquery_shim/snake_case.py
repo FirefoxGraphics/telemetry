@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # utility methods for for addressing snake_cased data via moztelemetry
 # https://github.com/acmiyaguchi/test-casing/
-import json
-import regex as re
 import collections
+import json
+
+import regex as re
 
 # Search for all camelCase situations in reverse with arbitrary lookaheads.
 REV_WORD_BOUND_PAT = re.compile(

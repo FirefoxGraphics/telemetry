@@ -57,7 +57,7 @@ def fetch_results(
         .option("dataset", query_job.destination.dataset_id)
         .option("table", query_job.destination.table_id)
         .load()
-        .rdd
+        .rdd.map(to_dataset)
     )
 
 
