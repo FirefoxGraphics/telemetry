@@ -11,14 +11,25 @@
 # In[2]:
 
 
+dbutils.library.installPyPI("google-cloud-bigquery", "1.16.0")
+dbutils.library.installPyPI("google-cloud-storage", "1.22.0")
+dbutils.library.installPyPI("regex")
+dbutils.library.install("dbfs:/eggs/bigquery_shim-0.5.8-py3.7.egg")
+dbutils.library.restartPython()
+
+
+# In[3]:
+
+
 from __future__ import division
 import ujson as json
 import numpy as np
 import operator
 import json, time, sys, os
 import datetime
-from moztelemetry import get_pings, get_pings_properties, get_one_ping_per_client
-from moztelemetry.dataset import Dataset
+from moztelemetry import get_one_ping_per_client
+from bigquery_shim import trends
+
 def fmt_date(d):
     return d.strftime("%Y%m%d")
 def jstime(d):
@@ -60,7 +71,7 @@ ABSOLUTE_PATH = '/dbfs/{0}'.format(DBFS_PATH)
 S3_OUTPUT_BUCKET = 's3://telemetry-public-analysis-2/gfx/telemetry-data'
 
 
-# In[3]:
+# In[4]:
 
 
 #dbutils.fs.rm(DBFS_PATH, recurse=True)
@@ -79,25 +90,25 @@ for (dirpath, dirnames, filenames) in walk(ABSOLUTE_PATH):
 print('Current contents of {0}: {1}'.format(ABSOLUTE_PATH, f))
 
 
-# In[4]:
+# In[5]:
 
 
 # Use this block to temporarily change parameters above.
 # ForceMaxBackfill = True
 #WeeklyFraction = 0.00001
 #S3_BUCKET = None
-MaxHistoryInDays = datetime.timedelta(days=210)
+# MaxHistoryInDays = datetime.timedelta(days=30)
 #BrandNewJobs = []
 
 
-# In[5]:
+# In[6]:
 
 
 if os.environ["DATABRICKS_RUNTIME_VERSION"] and S3_BUCKET:
   raise Exception("S3 sync is not supported on Databricks")
 
 
-# In[6]:
+# In[7]:
 
 
 ArchKey =               'environment/build/architecture'
@@ -111,13 +122,13 @@ OSVersionKey =          'environment/system/os/version'
 OSServicePackMajorKey = 'environment/system/os/servicePackMajor'
 
 
-# In[7]:
+# In[8]:
 
 
 FirstValidDate = datetime.datetime.utcnow() - MaxHistoryInDays
 
 
-# In[8]:
+# In[9]:
 
 
 # Log spam eats up disk space, so we disable it.
@@ -128,52 +139,20 @@ def quiet_logs(sc):
 quiet_logs(sc)
 
 
-# In[9]:
+# In[10]:
 
 
 # This is the entry-point to grabbing reduced, preformatted pings.
 def FetchAndFormat(start_date, end_date):
     pings = GetRawPings(start_date, end_date)
-    pings = ReduceRawPings(pings)
     pings = get_one_ping_per_client(pings)
     pings = pings.map(Validate)
     pings = pings.filter(lambda p: p.get('valid', False) == True)
     return pings.cache()
     
 def GetRawPings(start_date, end_date):
-    if isinstance(start_date, datetime.datetime):
-        start_date = fmt_date(start_date)
-    if isinstance(end_date, datetime.datetime):
-        end_date = fmt_date(end_date)
-    
-    def match_date(date):
-        return start_date <= date <= end_date
-            
-    ds = Dataset.from_source('telemetry-sample')
-    ds = ds.where(docType = 'main')
-    ds = ds.where(appName = 'Firefox')
-    ds = ds.where(appVersion = lambda version: version >= MinFirefoxVersion)
-    ds = ds.where(submissionDate = match_date)
-    
-    # We hit the telemetry-sample dataset, which is a 1% sample of pings, so we multiply the configured fraction by 100.
-    modified_fraction = WeeklyFraction * 100
-    
-    return ds.records(sc, sample = modified_fraction)
-
-def ReduceRawPings(pings):
-    return get_pings_properties(pings, [
-        'clientId',
-        'creationDate',
-        ArchKey,
-        Wow64Key,
-        CpuKey,
-        FxVersionKey,
-        GfxAdaptersKey,
-        GfxFeaturesKey,
-        OSNameKey,
-        OSVersionKey,
-        OSServicePackMajorKey,
-    ])
+    # WeeklyFraction ignored and baked into the included query
+    return trends.fetch_results(spark, start_date, end_date)
 
 # Transform each ping to make it easier to work with in later stages.
 def Validate(p):
@@ -204,7 +183,7 @@ def Validate(p):
     return p
 
 
-# In[10]:
+# In[11]:
 
 
 # Profiler for debugging. Use in a |with| clause.
@@ -229,7 +208,7 @@ class Prof(object):
         sys.stdout.flush()
 
 
-# In[11]:
+# In[12]:
 
 
 # Helpers.
@@ -246,7 +225,7 @@ def get_vendor(ping):
         return 'unknown'
 
 
-# In[12]:
+# In[13]:
 
 
 # A TrendBase encapsulates the data needed to visualize a trend.
@@ -277,7 +256,7 @@ class TrendBase(object):
         pass
 
 
-# In[13]:
+# In[14]:
 
 
 # Given a list of trend objects, query weeks from the last sunday
@@ -321,7 +300,7 @@ def MostRecentSunday():
     return this_morning + diff
 
 
-# In[14]:
+# In[15]:
 
 
 # A TrendGroup is a collection of TrendBase objects. It lets us
@@ -486,7 +465,7 @@ class Trend(TrendBase):
         return None
 
 
-# In[15]:
+# In[16]:
 
 
 class FirefoxTrend(Trend):
@@ -502,7 +481,7 @@ class FirefoxTrend(Trend):
         return pings.map(lambda p: (get_version(p),)).countByKey()
 
 
-# In[16]:
+# In[17]:
 
 
 class WindowsGroup(TrendGroup):
@@ -624,7 +603,7 @@ class WindowsVendorTrend(Trend):
         return pings.map(lambda p: (get_vendor(p),)).countByKey()
 
 
-# In[17]:
+# In[18]:
 
 
 # Device generation trend - a little more complicated, since we download
@@ -660,7 +639,7 @@ class DeviceGenTrend(Trend):
         return self.vendorBlock[deviceID][0]
 
 
-# In[18]:
+# In[19]:
 
 
 DoUpdate([
@@ -681,7 +660,7 @@ DoUpdate([
 ])
 
 
-# In[19]:
+# In[20]:
 
 
 # Copy the trend data from DBFS to S3
