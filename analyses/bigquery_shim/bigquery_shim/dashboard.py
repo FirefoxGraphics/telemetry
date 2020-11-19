@@ -25,56 +25,8 @@ def fetch_results(
         channel_filter = "normalized_channel = '{}' AND".format(channel)
 
     query = """
-    CREATE TEMP FUNCTION hist_to_json(input STRING) AS (
-        CASE
-        WHEN
-            STARTS_WITH(TRIM(input), '{')
-        THEN
-            -- Input is a histogram in the classic JSON representation.
-            input
-        WHEN
-            ARRAY_LENGTH(SPLIT(input, ';')) = 5
-        THEN
-            -- Input is a compactly encoded boolean histogram like "3;2;5;1,2;0:0,1:5,2:0"
-            FORMAT('{"bucket_count":%d,"histogram_type":%d,"sum":%d,"range":[%s],"values":{%s}}',
-                CAST(SPLIT(input, ';')[SAFE_OFFSET(0)] AS INT64),
-                CAST(SPLIT(input, ';')[SAFE_OFFSET(1)] AS INT64),
-                CAST(SPLIT(input, ';')[SAFE_OFFSET(2)] AS INT64),
-                CAST(SPLIT(input, ';')[SAFE_OFFSET(3)] AS STRING),
-                ARRAY_TO_STRING(ARRAY(
-                    SELECT
-                    FORMAT('"%d":%d', 
-                        CAST(SPLIT(entry, ':')[SAFE_OFFSET(0)] AS INT64),
-                        CAST(SPLIT(entry, ':')[SAFE_OFFSET(1)] AS INT64)
-                    )
-                    FROM
-                        UNNEST(SPLIT(SPLIT(input, ';')[SAFE_OFFSET(4)], ',')) AS entry
-                    WHERE
-                        LENGTH(entry) >= 3
-                ), ",")
-            )
-        WHEN
-            ARRAY_LENGTH(SPLIT(input, ',')) = 2
-        THEN
-            -- Input is a compactly encoded boolean histogram like "0,5"
-            FORMAT('{"bucket_count":3,"histogram_type":2,"sum":%d,"range":[1,2],"values":{"0":%d,"1":%d,"2":0}}',
-                CAST(SPLIT(input, ',')[SAFE_OFFSET(1)] AS INT64),
-                CAST(SPLIT(input, ',')[SAFE_OFFSET(0)] AS INT64),
-                CAST(SPLIT(input, ',')[SAFE_OFFSET(1)] AS INT64)
-            )
-        WHEN
-            ARRAY_LENGTH(SPLIT(input, ',')) = 1
-        THEN
-            -- Input is a compactly encoded count histogram like "5"
-            FORMAT('{"bucket_count":3,"histogram_type":4,"sum":%d,"range":[1,2],"values":{"0":%d,"1":0}}',
-                CAST(SPLIT(input, ',')[SAFE_OFFSET(0)] AS INT64),
-                CAST(input AS INT64)
-            )
-        END
-    );
-
     CREATE TEMP FUNCTION keyed_hist_to_json(h ANY TYPE) AS (
-        ARRAY(SELECT AS STRUCT key, hist_to_json(value) AS value FROM UNNEST(h))
+        ARRAY(SELECT AS STRUCT key, mozfun.hist.string_to_json(value) AS value FROM UNNEST(h))
     );
 
     WITH sample AS
@@ -95,22 +47,22 @@ def fetch_results(
         environment.system.gfx.monitors                                           as environment__system__gfx__monitors,
         environment.build.architecture                                            as environment__build__architecture,
         environment.system.gfx.features                                           as environment__system__gfx__features,
-        hist_to_json(payload.histograms.DEVICE_RESET_REASON)                                    as payload__histograms__DEVICE_RESET_REASON,
-        hist_to_json(payload.histograms.GRAPHICS_SANITY_TEST)                                   as payload__histograms__GRAPHICS_SANITY_TEST,
-        hist_to_json(payload.histograms.GRAPHICS_SANITY_TEST_REASON)                            as payload__histograms__GRAPHICS_SANITY_TEST_REASON,
-        hist_to_json(payload.histograms.GRAPHICS_DRIVER_STARTUP_TEST)                           as payload__histograms__GRAPHICS_DRIVER_STARTUP_TEST,
-        hist_to_json(payload.histograms.CANVAS_WEBGL_SUCCESS)                                   as payload__histograms__CANVAS_WEBGL_SUCCESS,
-        hist_to_json(payload.histograms.CANVAS_WEBGL2_SUCCESS)                                  as payload__histograms__CANVAS_WEBGL2_SUCCESS,
-        hist_to_json(payload.histograms.PLUGIN_DRAWING_MODEL)                                   as payload__histograms__PLUGIN_DRAWING_MODEL,
-        hist_to_json(payload.histograms.MEDIA_DECODER_BACKEND_USED)                             as payload__histograms__MEDIA_DECODER_BACKEND_USED,
-        hist_to_json(payload.processes.content.histograms.DEVICE_RESET_REASON)                  as payload__processes__content__histograms__DEVICE_RESET_REASON,
-        hist_to_json(payload.processes.content.histograms.GRAPHICS_SANITY_TEST)                 as payload__processes__content__histograms__GRAPHICS_SANITY_TEST,
-        hist_to_json(payload.processes.content.histograms.GRAPHICS_SANITY_TEST_REASON)          as payload__processes__content__histograms__GRAPHICS_SANITY_TEST_REASON,
-        hist_to_json(payload.processes.content.histograms.GRAPHICS_DRIVER_STARTUP_TEST)         as payload__processes__content__histograms__GRAPHICS_DRIVER_STARTUP_TEST,
-        hist_to_json(payload.processes.content.histograms.CANVAS_WEBGL_SUCCESS)                 as payload__processes__content__histograms__CANVAS_WEBGL_SUCCESS,
-        hist_to_json(payload.processes.content.histograms.CANVAS_WEBGL2_SUCCESS)                as payload__processes__content__histograms__CANVAS_WEBGL2_SUCCESS,
-        hist_to_json(payload.processes.content.histograms.PLUGIN_DRAWING_MODEL)                 as payload__processes__content__histograms__PLUGIN_DRAWING_MODEL,
-        hist_to_json(payload.processes.content.histograms.MEDIA_DECODER_BACKEND_USED)           as payload__processes__content__histograms__MEDIA_DECODER_BACKEND_USED,
+        mozfun.hist.string_to_json(payload.histograms.DEVICE_RESET_REASON)                                    as payload__histograms__DEVICE_RESET_REASON,
+        mozfun.hist.string_to_json(payload.histograms.GRAPHICS_SANITY_TEST)                                   as payload__histograms__GRAPHICS_SANITY_TEST,
+        mozfun.hist.string_to_json(payload.histograms.GRAPHICS_SANITY_TEST_REASON)                            as payload__histograms__GRAPHICS_SANITY_TEST_REASON,
+        mozfun.hist.string_to_json(payload.histograms.GRAPHICS_DRIVER_STARTUP_TEST)                           as payload__histograms__GRAPHICS_DRIVER_STARTUP_TEST,
+        mozfun.hist.string_to_json(payload.histograms.CANVAS_WEBGL_SUCCESS)                                   as payload__histograms__CANVAS_WEBGL_SUCCESS,
+        mozfun.hist.string_to_json(payload.histograms.CANVAS_WEBGL2_SUCCESS)                                  as payload__histograms__CANVAS_WEBGL2_SUCCESS,
+        mozfun.hist.string_to_json(payload.histograms.PLUGIN_DRAWING_MODEL)                                   as payload__histograms__PLUGIN_DRAWING_MODEL,
+        mozfun.hist.string_to_json(payload.histograms.MEDIA_DECODER_BACKEND_USED)                             as payload__histograms__MEDIA_DECODER_BACKEND_USED,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.DEVICE_RESET_REASON)                  as payload__processes__content__histograms__DEVICE_RESET_REASON,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.GRAPHICS_SANITY_TEST)                 as payload__processes__content__histograms__GRAPHICS_SANITY_TEST,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.GRAPHICS_SANITY_TEST_REASON)          as payload__processes__content__histograms__GRAPHICS_SANITY_TEST_REASON,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.GRAPHICS_DRIVER_STARTUP_TEST)         as payload__processes__content__histograms__GRAPHICS_DRIVER_STARTUP_TEST,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.CANVAS_WEBGL_SUCCESS)                 as payload__processes__content__histograms__CANVAS_WEBGL_SUCCESS,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.CANVAS_WEBGL2_SUCCESS)                as payload__processes__content__histograms__CANVAS_WEBGL2_SUCCESS,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.PLUGIN_DRAWING_MODEL)                 as payload__processes__content__histograms__PLUGIN_DRAWING_MODEL,
+        mozfun.hist.string_to_json(payload.processes.content.histograms.MEDIA_DECODER_BACKEND_USED)           as payload__processes__content__histograms__MEDIA_DECODER_BACKEND_USED,
         keyed_hist_to_json(payload.keyed_histograms.D3D11_COMPOSITING_FAILURE_ID)                     as payload__keyed_histograms__D3D11_COMPOSITING_FAILURE_ID,
         keyed_hist_to_json(payload.keyed_histograms.OPENGL_COMPOSITING_FAILURE_ID)                    as payload__keyed_histograms__OPENGL_COMPOSITING_FAILURE_ID,
         keyed_hist_to_json(payload.keyed_histograms.CANVAS_WEBGL_ACCL_FAILURE_ID)                     as payload__keyed_histograms__CANVAS_WEBGL_ACCL_FAILURE_ID,
