@@ -18,7 +18,7 @@ def fetch_results(
     spark,
     start_date,
     end_date,
-    project_id="moz-fx-data-shared-prod",
+    project_id="mozdata",
     dataset_id="analysis",
     table_id="graphics_telemetry_trends_tmp",
 ):

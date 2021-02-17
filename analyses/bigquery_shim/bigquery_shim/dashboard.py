@@ -16,7 +16,7 @@ def fetch_results(
     end_date,
     channel=None,
     min_firefox_version="53",
-    project_id="moz-fx-data-shared-prod",
+    project_id="mozdata",
     dataset_id="analysis",
     table_id="graphics_telemetry_dashboard_tmp",
 ):
