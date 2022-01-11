@@ -207,7 +207,7 @@ def convert_bigquery_results(f):
                 raise (Exception("too many pieces"))
     except TypeError as _err:
         import logging
-        logging.error("Issue encountered when running result converstion. Problematic values: %s" % pieces)
+        logging.error("Issue encountered when running result converstion. Problematic values: %s" % (k, v,))
         raise _err
 
     # example additional_properties
