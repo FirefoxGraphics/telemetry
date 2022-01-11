@@ -146,64 +146,69 @@ def convert_bigquery_results(f):
     # instead, we explicitly add the properties we know we care about at the end of this routine
     additional_properties = json.loads(d.pop("additional_properties") or "{}")
     newdict = {}
-    for k, v in d.items():
-        pieces = list(map(revert, k.split("__")))
-        # print(pieces)
-        if len(pieces) == 1:
-            newdict[pieces[0]] = v
-        elif len(pieces) == 3:
-            first, second, third = pieces
-            if second == "histograms" and isinstance(v, str):
-                v = json.loads(v)
-            if second == "keyedHistograms":
-                if len(v) == 0:
-                    continue
-                else:
-                    z = {}
-                    for i in v:
-                        z[i["key"]] = json.loads(i["value"])
-                    v = z
-            if first not in newdict:
-                newdict[first] = {}
-            if second not in newdict[first]:
-                newdict[first][second] = {}
-            newdict[first][second][third] = v
-        elif len(pieces) == 4:
-            first, second, third, fourth = pieces
-            if first not in newdict:
-                newdict[first] = {}
-            if second not in newdict[first]:
-                newdict[first][second] = {}
-            if third not in newdict[first][second]:
-                newdict[first][second][third] = {}
-            if fourth not in newdict[first][second][third]:
-                newdict[first][second][third][fourth] = {}
+    try:
+        for k, v in d.items():
+            pieces = list(map(revert, k.split("__")))
+            # print(pieces)
+            if len(pieces) == 1:
+                newdict[pieces[0]] = v
+            elif len(pieces) == 3:
+                first, second, third = pieces
+                if second == "histograms" and isinstance(v, str):
+                    v = json.loads(v)
+                if second == "keyedHistograms":
+                    if len(v) == 0:
+                        continue
+                    else:
+                        z = {}
+                        for i in v:
+                            z[i["key"]] = json.loads(i["value"])
+                        v = z
+                if first not in newdict:
+                    newdict[first] = {}
+                if second not in newdict[first]:
+                    newdict[first][second] = {}
+                newdict[first][second][third] = v
+            elif len(pieces) == 4:
+                first, second, third, fourth = pieces
+                if first not in newdict:
+                    newdict[first] = {}
+                if second not in newdict[first]:
+                    newdict[first][second] = {}
+                if third not in newdict[first][second]:
+                    newdict[first][second][third] = {}
+                if fourth not in newdict[first][second][third]:
+                    newdict[first][second][third][fourth] = {}
 
-            newdict[first][second][third][fourth] = v
+                newdict[first][second][third][fourth] = v
 
-        elif len(pieces) == 5:
-            first, second, third, fourth, fifth = pieces
-            if fourth == "histograms" and isinstance(v, str):
-                v = json.loads(v)
-            if fourth == "keyedHistograms":
-                if len(v) == 0:
-                    continue
-                else:
-                    z = {}
-                    for i in v:
-                        z[i["key"]] = json.loads(i["value"])
-                    v = z
-            if first not in newdict:
-                newdict[first] = {}
-            if second not in newdict[first]:
-                newdict[first][second] = {}
-            if third not in newdict[first][second]:
-                newdict[first][second][third] = {}
-            if fourth not in newdict[first][second][third]:
-                newdict[first][second][third][fourth] = {}
-            newdict[first][second][third][fourth][fifth] = v
-        elif len(pieces) > 5:
-            raise (Exception("too many pieces"))
+            elif len(pieces) == 5:
+                first, second, third, fourth, fifth = pieces
+                if fourth == "histograms" and isinstance(v, str):
+                    v = json.loads(v)
+                if fourth == "keyedHistograms":
+                    if len(v) == 0:
+                        continue
+                    else:
+                        z = {}
+                        for i in v:
+                            z[i["key"]] = json.loads(i["value"])
+                        v = z
+                if first not in newdict:
+                    newdict[first] = {}
+                if second not in newdict[first]:
+                    newdict[first][second] = {}
+                if third not in newdict[first][second]:
+                    newdict[first][second][third] = {}
+                if fourth not in newdict[first][second][third]:
+                    newdict[first][second][third][fourth] = {}
+                newdict[first][second][third][fourth][fifth] = v
+            elif len(pieces) > 5:
+                raise (Exception("too many pieces"))
+    except TypeError as _err:
+        import logging
+        logging.error("Issue encountered when running result converstion. Problematic values: %s" % pieces)
+        raise _err
 
     # example additional_properties
     # {"environment":{"system":{"gfx":{"adapters":[{"driverVendor":null}],"ContentBackend":"Skia"}},"addons":{"activeGMPlugins":{"dummy-gmp":{"applyBackgroundUpdates":1}}}},"payload":{"processes":{"extension":{"histograms":{"FXA_CONFIGURED":{"bucket_count":3,"histogram_type":3,"sum":0,"range":[1,2],"values":{"0":1,"1":0}}}}},"simpleMeasurements":{"selectProfile":15637,"XPI_startup_end":27497,"XPI_finalUIStartup":29308,"start":696,"AMI_startup_begin":19076,"startupCrashDetectionBegin":18382,"AMI_startup_end":27766,"afterProfileLocked":15742,"startupInterrupted":0,"maximalNumberOfConcurrentThreads":72,"createTopLevelWindow":29539,"XPI_bootstrap_addons_end":27497,"XPI_bootstrap_addons_begin":27382,"sessionRestoreInitialized":29400,"delayedStartupStarted":38798,"sessionRestoreInit":29358,"debuggerAttached":0,"startupCrashDetectionEnd":75127,"delayedStartupFinished":40246,"XPI_startup_begin":19670}}}'
