@@ -968,6 +968,10 @@ def GetWindowsFeatures():
     def aggregate_plugin_models(rdd):
         rdd = rdd.filter(lambda p: p.get(PluginModelKey) is not None)
         rdd = rdd.map(lambda p: p.get(PluginModelKey))
+
+        if rdd.isEmpty():
+            return list()
+
         result = rdd.reduce(lambda x, y: x + y)
         return [int(count) for count in result]
     
