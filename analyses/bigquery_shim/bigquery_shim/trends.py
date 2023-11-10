@@ -34,7 +34,7 @@ def fetch_results(
   environment.system.os.name,
   environment.system.os.version as os_version,
   environment.system.os.service_pack_major
-  FROM `moz-fx-data-shared-prod.telemetry_stable.main_v4` WHERE
+  FROM `moz-fx-data-shared-prod.telemetry_stable.main_v5` WHERE
   sample_id = 42 AND
   date(submission_timestamp) >= '{}' AND date(submission_timestamp) <= '{}' AND
   CAST(SPLIT(application.version, '.')[OFFSET(0)] AS INT64) > 53 AND
