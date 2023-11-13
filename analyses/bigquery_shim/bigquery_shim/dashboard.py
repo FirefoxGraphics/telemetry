@@ -71,7 +71,7 @@ def fetch_results(
         keyed_hist_to_json(payload.processes.content.keyed_histograms.OPENGL_COMPOSITING_FAILURE_ID)  as payload__processes__content__keyed_histograms__OPENGL_COMPOSITING_FAILURE_ID,
         keyed_hist_to_json(payload.processes.content.keyed_histograms.CANVAS_WEBGL_ACCL_FAILURE_ID)   as payload__processes__content__keyed_histograms__CANVAS_WEBGL_ACCL_FAILURE_ID,
         keyed_hist_to_json(payload.processes.content.keyed_histograms.CANVAS_WEBGL_FAILURE_ID)        as payload__processes__content__keyed_histograms__CANVAS_WEBGL_FAILURE_ID
-        from `moz-fx-data-shared-prod.telemetry_stable.main_v4` where
+        from `moz-fx-data-shared-prod.telemetry_stable.main_v5` where
         date(submission_timestamp) >= '{start_date}' AND date(submission_timestamp) <= '{end_date}' AND
         normalized_app_name = 'Firefox' AND
         {channel_filter}
